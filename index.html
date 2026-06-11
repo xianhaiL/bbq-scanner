@@ -666,7 +666,7 @@ function handleDishPhoto(event) {
   const file = event.target.files[0];
   if (!file) return;
   showLoading('压缩图片中...');
-  compressImage(file, 400, 0.6, function(compressed) {
+  compressImage(file, 300, 0.7, function(compressed) {
     dishPhotoBase64 = compressed;
     const preview = document.getElementById('dish-photo-preview');
     preview.src = dishPhotoBase64;
@@ -859,54 +859,40 @@ function handleScanImage(event) {
   if (!currentTable) { showToast('请先选择桌台'); goBackToTables(); return; }
 
   showLoading('压缩图片中...');
-  compressImage(file, 800, 0.7, function(compressed) {
-    showLoading('AI 正在识别...');
+  compressImage(file, 1024, 0.85, function(compressed) {
+    showLoading('AI 正在比对参考图识别...');
     recognizeDishes(compressed, apiKey);
   });
 }
 
 async function recognizeDishes(scanBase64, apiKey) {
   const lib = loadLibrary();
-  // Only send dish names as text (not photos) to minimize token cost
-  const nameList = lib.map(d => d.name).join('、');
+  if (lib.length === 0) { hideLoading(); showToast('请先添加菜品到菜品库'); return; }
 
   try {
-    const systemPrompt = `你是烧烤店菜品识别助手。本店菜单包含以下菜品：
+    // === Round 1: fast scan with dish names + photo ===
+    const nameList = lib.map(d => d.name).join('、');
 
-${nameList}
-
-观察客人桌上的实拍照片，从中识别出菜单中存在的菜品及其数量。
-
-返回严格JSON：
-{
-  "dishes": [
-    {"name": "菜品名称", "quantity": 数量}
-  ]
-}
-
-规则：
-1. name 必须与上面列出的菜名完全一致，不要修改、缩写或扩展
-2. quantity 是整数，表示份数/串数/盘数
-3. 同种菜多份请合并 quantity
-4. 只输出照片中确实看到的菜，没看到的不输出
-5. 照片中的菜如果不在上述菜单列表中，忽略它
-6. 不要编造菜品`;
-
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+    const r1Resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
         model: 'qwen-vl-plus',
         messages: [
-          { role: 'system', content: systemPrompt },
+          {
+            role: 'system',
+            content: `你是烧烤店菜品识别助手。本店菜单：${nameList}
+
+观察照片，列出照片中可能存在的菜品（候选列表）。返回JSON：
+{"candidates": ["菜名1", "菜名2"]}
+
+规则：放宽条件，宁可多列候选，不要漏掉。只在菜单范围内选。`
+          },
           {
             role: 'user',
             content: [
               { type: 'image_url', image_url: { url: scanBase64 } },
-              { type: 'text', text: '识别照片中的菜品和数量' }
+              { type: 'text', text: '照片中有哪些菜品？列出候选' }
             ]
           }
         ],
@@ -914,42 +900,77 @@ ${nameList}
       })
     });
 
-    if (!resp.ok) {
-      const err = await resp.text();
-      hideLoading();
-      console.error('API Error:', resp.status, err);
-      if (resp.status === 401 || resp.status === 403) {
-        showToast('API Key 无效，请检查设置');
-      } else if (resp.status === 429) {
-        showToast('请求太频繁，请稍后再试');
-      } else {
-        showToast('识别失败: ' + resp.status);
+    if (!r1Resp.ok) throw new Error('R1 API error ' + r1Resp.status);
+    const r1Data = await r1Resp.json();
+    const r1Content = r1Data.choices?.[0]?.message?.content;
+    let candidates = [];
+    try {
+      const cleaned = r1Content.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
+      candidates = JSON.parse(cleaned).candidates || [];
+    } catch { candidates = []; }
+
+    if (candidates.length === 0) { hideLoading(); showToast('未识别到菜品，请换张清晰照片重试'); return; }
+
+    // === Round 2: visual verification with candidate reference photos ===
+    showLoading('AI 正在比对参考图确认...');
+    const userContent = [];
+
+    const candidateDishes = lib.filter(d => candidates.includes(d.name) && d.photo);
+    // Also include any dish without photo (text-only fallback)
+    for (const dish of candidateDishes) {
+      userContent.push({ type: 'image_url', image_url: { url: dish.photo } });
+      userContent.push({ type: 'text', text: '【参考图：' + dish.name + '】' });
+    }
+    // Include text-only candidates
+    for (const name of candidates) {
+      const d = lib.find(d => d.name === name);
+      if (d && !d.photo) {
+        userContent.push({ type: 'text', text: '【菜品：' + name + '（无参考图）】' });
       }
-      return;
     }
 
-    const data = await resp.json();
-    hideLoading();
+    userContent.push({ type: 'image_url', image_url: { url: scanBase64 } });
+    userContent.push({ type: 'text', text: '↑ 逐一对照参考图，确认照片中有哪些菜、各几串/几份。只输出JSON。' });
 
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) { showToast('AI 未返回有效结果，请重试'); return; }
+    const r2Resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: 'qwen-vl-plus',
+        messages: [
+          {
+            role: 'system',
+            content: `对照参考图，确认实拍照片中的菜品和数量。返回JSON：
+{"dishes": [{"name": "菜品名称", "quantity": 数量}]}
+
+规则：name必须与参考图菜名一致，同种合并quantity，没看到的不输出。`
+          },
+          { role: 'user', content: userContent }
+        ],
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!r2Resp.ok) throw new Error('R2 API error ' + r2Resp.status);
+    const r2Data = await r2Resp.json();
+    const r2Content = r2Data.choices?.[0]?.message?.content;
+    if (!r2Content) { hideLoading(); showToast('AI 未返回结果，请重试'); return; }
 
     let result;
     try {
-      const cleaned = content.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
+      const cleaned = r2Content.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
       result = JSON.parse(cleaned);
     } catch {
-      const match = content.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { result = JSON.parse(match[0]); } catch { /* fall through */ }
-      }
-      if (!result) { console.error('Parse error:', content); showToast('AI 返回格式异常，请重试'); return; }
+      const match = r2Content.match(/\{[\s\S]*\}/);
+      if (match) { try { result = JSON.parse(match[0]); } catch {} }
+      if (!result) { console.error('Parse error:', r2Content); hideLoading(); showToast('AI 返回格式异常，请重试'); return; }
     }
 
     const dishes = result.dishes || [];
-    if (dishes.length === 0) { showToast('未识别到菜品，请换张清晰的照片重试'); return; }
+    if (dishes.length === 0) { hideLoading(); showToast('未确认到菜品，请换张照片重试'); return; }
 
     // Merge into current table
+    hideLoading();
     const tables = loadTables();
     if (!tables[currentTable]) return;
     let items = tables[currentTable].items || [];
@@ -976,8 +997,8 @@ ${nameList}
     showToast(msg, 2500);
   } catch (e) {
     hideLoading();
-    console.error('Fetch error:', e);
-    showToast('网络错误，请检查网络后重试');
+    console.error('Recognition error:', e);
+    showToast('识别失败，请检查网络后重试');
   }
 }
 
