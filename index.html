@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="烧烤点菜">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d97706'/><text x='50' y='68' font-size='60' text-anchor='middle'>🍖</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23d97706'/><text x='50' y='68' font-size='60' text-anchor='middle'>🍖</text></svg>">
+<title>烧烤点菜扫描</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --amber: #f59e0b;
+  --amber-dark: #d97706;
+  --red: #ef4444;
+  --green: #22c55e;
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f4;
+  --gray-200: #e7e5e4;
+  --gray-400: #a8a29e;
+  --gray-600: #57534e;
+  --gray-800: #292524;
+  --radius: 12px;
+  --safe-bottom: env(safe-area-inset-bottom, 16px);
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1c1917;
+  color: var(--gray-800);
+  display: flex; justify-content: center; align-items: center;
+}
+.app {
+  width: 100%; max-width: 480px; height: 100%;
+  background: var(--gray-50);
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  color: #fff; padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+.header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+.header-btn {
+  background: rgba(255,255,255,.2); border: none; color: #fff;
+  width: 36px; height: 36px; border-radius: 50%;
+  font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.header-btn:active { background: rgba(255,255,255,.4); }
+
+.main { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+
+/* Bottom Tabs */
+.tab-bar {
+  display: flex; background: #fff; border-top: 1px solid var(--gray-200);
+  flex-shrink: 0; padding-bottom: var(--safe-bottom);
+}
+.tab-item {
+  flex: 1; text-align: center; padding: 10px 0 6px;
+  cursor: pointer; color: var(--gray-400); font-size: 11px;
+  transition: color .2s;
+}
+.tab-item.active { color: var(--amber-dark); font-weight: 600; }
+.tab-item .tab-icon { font-size: 22px; display: block; margin-bottom: 2px; }
+
+/* Table grid */
+.table-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.table-card {
+  background: #fff; border-radius: var(--radius); padding: 20px 16px;
+  text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  cursor: pointer; position: relative; border: 2px solid transparent;
+  transition: border-color .2s;
+}
+.table-card:active { border-color: var(--amber); }
+.table-card .table-num { font-size: 32px; font-weight: 800; color: var(--amber-dark); line-height: 1; }
+.table-card .table-label { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+.table-card .table-count {
+  margin-top: 8px; font-size: 13px; color: var(--gray-600);
+  background: var(--gray-100); border-radius: 20px; padding: 4px 12px; display: inline-block;
+}
+.table-delete {
+  position: absolute; top: 8px; right: 8px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--red); color: #fff; border: none;
+  font-size: 14px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .2s; cursor: pointer;
+}
+.table-card:active .table-delete { opacity: 1; }
+
+/* Dish library */
+.dish-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.dish-card {
+  background: #fff; border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: pointer; position: relative;
+  border: 2px solid transparent; transition: border-color .2s;
+}
+.dish-card:active { border-color: var(--amber); }
+.dish-card .dish-img {
+  width: 100%; height: 110px; object-fit: cover; background: var(--gray-100);
+}
+.dish-card .dish-img-placeholder {
+  width: 100%; height: 110px; background: var(--gray-100);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; color: var(--gray-400);
+}
+.dish-card .dish-info { padding: 10px; }
+.dish-card .dish-name { font-size: 15px; font-weight: 600; }
+.dish-card .dish-price { font-size: 13px; color: var(--amber-dark); font-weight: 700; margin-top: 2px; }
+.dish-card .dish-delete {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--red); color: #fff; border: none; font-size: 12px;
+  cursor: pointer; opacity: 0; transition: opacity .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.dish-card:active .dish-delete { opacity: 1; }
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--gray-400);
+}
+.empty-state .icon { font-size: 56px; display: block; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* FAB */
+.fab {
+  position: sticky; bottom: 8px; display: block; width: 100%;
+  background: var(--amber); color: #fff; border: none;
+  border-radius: var(--radius); padding: 16px;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  margin-top: 16px; box-shadow: 0 4px 12px rgba(245,158,11,.4);
+}
+.fab:active { background: var(--amber-dark); }
+.fab-outline {
+  background: #fff; color: var(--amber-dark); border: 2px solid var(--amber);
+  box-shadow: 0 2px 8px rgba(245,158,11,.2);
+}
+.fab-outline:active { background: #fffbeb; }
+
+/* Detail header */
+.detail-header {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+  background: #fff; border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
+}
+.back-btn {
+  background: none; border: none; font-size: 24px; cursor: pointer;
+  color: var(--gray-800); padding: 4px; line-height: 1;
+}
+.detail-table-num { font-size: 22px; font-weight: 800; color: var(--amber-dark); flex: 1; }
+.detail-actions { display: flex; gap: 8px; }
+.detail-actions button {
+  padding: 6px 12px; border-radius: 20px; border: 1px solid var(--gray-200);
+  background: #fff; font-size: 13px; cursor: pointer; color: var(--gray-600);
+}
+.detail-actions button:active { background: var(--gray-100); }
+.detail-actions .clear-btn { color: var(--red); border-color: var(--red); }
+
+/* Item list */
+.item-list { list-style: none; padding: 8px 0; }
+.item {
+  display: flex; align-items: center; padding: 14px 20px;
+  background: #fff; border-bottom: 1px solid var(--gray-100); gap: 12px;
+}
+.item:last-child { border-bottom: none; }
+.item-name { flex: 1; font-size: 16px; font-weight: 500; }
+.item-info { flex: 1; min-width: 0; }
+.item-price { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+.item-subtotal { font-size: 13px; color: var(--amber-dark); font-weight: 600; min-width: 50px; text-align: right; }
+.item-qty {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--gray-100); border-radius: 20px; padding: 4px;
+}
+.item-qty button {
+  width: 30px; height: 30px; border-radius: 50%; border: none;
+  background: #fff; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gray-800); box-shadow: 0 1px 2px rgba(0,0,0,.1);
+}
+.item-qty button:active { background: var(--gray-200); }
+.item-qty span { font-size: 15px; font-weight: 600; min-width: 22px; text-align: center; }
+.item-del {
+  background: none; border: none; color: var(--red); font-size: 18px;
+  cursor: pointer; padding: 4px 8px;
+}
+
+/* Settings */
+.settings-section {
+  background: #fff; border-radius: var(--radius); padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px;
+}
+.settings-section h3 { font-size: 16px; margin-bottom: 12px; }
+.settings-section label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--gray-600); }
+.settings-section input {
+  width: 100%; padding: 12px; border: 2px solid var(--gray-200);
+  border-radius: 8px; font-size: 14px; outline: none;
+  transition: border-color .2s;
+}
+.settings-section input:focus { border-color: var(--amber); }
+.settings-section .hint { font-size: 12px; color: var(--gray-400); margin-top: 6px; }
+.settings-section .hint a { color: var(--amber-dark); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 100; animation: fadeIn .2s;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: #fff; border-radius: 16px 16px 0 0; width: 100%;
+  max-width: 480px; padding: 24px 20px; animation: slideUp .25s;
+  max-height: 85vh; overflow-y: auto;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal h3 { font-size: 18px; margin-bottom: 16px; }
+.modal input {
+  width: 100%; padding: 12px; border: 2px solid var(--gray-200);
+  border-radius: 8px; font-size: 16px; outline: none; margin-bottom: 12px;
+}
+.modal input:focus { border-color: var(--amber); }
+.modal-btns { display: flex; gap: 12px; margin-top: 8px; }
+.modal-btns button {
+  flex: 1; padding: 14px; border-radius: var(--radius);
+  border: none; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.modal-btns .cancel { background: var(--gray-100); color: var(--gray-600); }
+.modal-btns .confirm { background: var(--amber); color: #fff; }
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 200;
+}
+.spinner {
+  width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.3);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: #fff; margin-top: 16px; font-size: 15px; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
+  background: var(--gray-800); color: #fff; padding: 12px 24px;
+  border-radius: 20px; font-size: 14px; z-index: 300; pointer-events: none;
+  animation: toastIn .3s;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+
+/* Views */
+.view { display: none; flex-direction: column; height: 100%; }
+.view.active { display: flex; }
+
+/* manual add */
+.manual-add {
+  display: flex; gap: 8px; padding: 12px 20px;
+  background: #fff; border-bottom: 1px solid var(--gray-100);
+}
+.manual-add input {
+  padding: 10px; border: 2px solid var(--gray-200);
+  border-radius: 8px; font-size: 14px; outline: none;
+}
+.manual-add input[name="dishname"] { flex: 1; }
+.manual-add input[name="dishqty"] { max-width: 70px; }
+.manual-add input:focus { border-color: var(--amber); }
+.manual-add .add-btn {
+  padding: 10px 16px; background: var(--amber); color: #fff;
+  border: none; border-radius: 8px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+
+/* Camera buttons */
+.camera-btns {
+  display: flex; gap: 12px; padding: 12px 20px;
+}
+.camera-btns button {
+  flex: 1; padding: 14px; border-radius: var(--radius);
+  border: 2px solid var(--amber); background: #fff;
+  color: var(--amber-dark); font-size: 15px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.camera-btns button:active { background: #fffbeb; }
+.camera-btns .primary-btn {
+  background: var(--amber); color: #fff; border-color: var(--amber);
+}
+.camera-btns .primary-btn:active { background: var(--amber-dark); }
+
+.summary-bar {
+  padding: 12px 20px; background: #fffbeb;
+  border-top: 2px solid var(--amber); flex-shrink: 0;
+  display: flex; justify-content: space-between;
+  font-size: 14px; color: var(--gray-600);
+}
+.summary-bar strong { color: var(--amber-dark); font-size: 16px; }
+
+/* Library count badge */
+.badge {
+  display: inline-block; background: var(--amber); color: #fff;
+  font-size: 11px; padding: 1px 7px; border-radius: 10px; margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Dish photo in add modal */
+.dish-photo-area {
+  width: 100%; height: 180px; border: 2px dashed var(--gray-200);
+  border-radius: var(--radius); margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; overflow: hidden; background: var(--gray-50);
+  transition: border-color .2s;
+}
+.dish-photo-area:active { border-color: var(--amber); }
+.dish-photo-area img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.dish-photo-area .placeholder {
+  text-align: center; color: var(--gray-400);
+}
+.dish-photo-area .placeholder .ph-icon { font-size: 42px; display: block; }
+.dish-photo-area .placeholder .ph-text { font-size: 13px; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ========== 桌台列表视图 ========== -->
+  <div class="view active" id="view-tables">
+    <div class="header">
+      <h1>🍖 烧烤点菜扫描</h1>
+      <div style="display:flex;gap:8px">
+        <span style="font-size:12px;color:rgba(255,255,255,.7);line-height:36px" id="lib-count-header"></span>
+      </div>
+    </div>
+    <div class="main" id="tables-main"></div>
+    <button class="fab" onclick="showAddTableModal()">+ 添加桌台</button>
+    <div class="tab-bar">
+      <div class="tab-item active" onclick="switchTab('tables')">
+        <span class="tab-icon">🪑</span>桌台
+      </div>
+      <div class="tab-item" onclick="switchTab('library')">
+        <span class="tab-icon">📚</span>菜品库
+      </div>
+      <div class="tab-item" onclick="switchTab('settings')">
+        <span class="tab-icon">⚙</span>设置
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 菜品库视图 ========== -->
+  <div class="view" id="view-library">
+    <div class="header">
+      <h1>📚 菜品库</h1>
+      <span style="font-size:13px;color:rgba(255,255,255,.7)" id="lib-dish-count"></span>
+    </div>
+    <div class="main" id="library-main"></div>
+    <button class="fab" onclick="showAddDishModal()">+ 添加菜品</button>
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchTab('tables')">
+        <span class="tab-icon">🪑</span>桌台
+      </div>
+      <div class="tab-item active" onclick="switchTab('library')">
+        <span class="tab-icon">📚</span>菜品库
+      </div>
+      <div class="tab-item" onclick="switchTab('settings')">
+        <span class="tab-icon">⚙</span>设置
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 设置视图 ========== -->
+  <div class="view" id="view-settings">
+    <div class="header">
+      <h1>⚙ 设置</h1>
+      <span style="width:36px"></span>
+    </div>
+    <div class="main">
+      <div class="settings-section">
+        <h3>通义千问 API</h3>
+        <label>API Key</label>
+        <input type="password" id="api-key-input" placeholder="sk-xxxxxxxx">
+        <p class="hint">在 <a href="https://bailian.console.aliyun.com" target="_blank">阿里云百炼平台</a> 申请，新用户有免费额度。识别一次约花费几分钱。</p>
+      </div>
+      <button class="fab" onclick="saveSettings()" style="position:static;margin-top:8px">保存设置</button>
+      <button class="fab fab-outline" onclick="downloadApp()" style="position:static;margin-top:12px">💾 保存到手机</button>
+      <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--gray-400)" id="settings-status"></p>
+    </div>
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchTab('tables')">
+        <span class="tab-icon">🪑</span>桌台
+      </div>
+      <div class="tab-item" onclick="switchTab('library')">
+        <span class="tab-icon">📚</span>菜品库
+      </div>
+      <div class="tab-item active" onclick="switchTab('settings')">
+        <span class="tab-icon">⚙</span>设置
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 桌台详情视图 ========== -->
+  <div class="view" id="view-detail">
+    <div class="detail-header">
+      <button class="back-btn" onclick="goBackToTables()">←</button>
+      <span class="detail-table-num" id="detail-table-num"></span>
+      <div class="detail-actions">
+        <button onclick="toggleManualAdd()">✏ 手动加菜</button>
+        <button class="clear-btn" onclick="clearCurrentTable()">清空</button>
+      </div>
+    </div>
+    <div class="manual-add" id="manual-add" style="display:none">
+      <input type="text" name="dishname" id="manual-dish-name" placeholder="菜名" onkeydown="if(event.key==='Enter')addManualDish()" oninput="autoFillPrice()">
+      <input type="number" name="dishqty" id="manual-dish-qty" placeholder="数量" value="1" min="1" onkeydown="if(event.key==='Enter')addManualDish()">
+      <input type="number" name="dishprice" id="manual-dish-price" placeholder="单价" step="0.1" min="0" style="max-width:80px" onkeydown="if(event.key==='Enter')addManualDish()">
+      <button class="add-btn" onclick="addManualDish()">添加</button>
+    </div>
+    <div class="main" id="detail-main"></div>
+    <div class="camera-btns" id="camera-btns">
+      <button onclick="document.getElementById('gallery-input').click()">🖼 相册</button>
+      <button class="primary-btn" onclick="document.getElementById('camera-input').click()">📷 拍照识别</button>
+      <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleScanImage(event)" hidden>
+      <input type="file" id="gallery-input" accept="image/*" onchange="handleScanImage(event)" hidden>
+    </div>
+    <div class="summary-bar" id="summary-bar" style="display:none">
+      <span id="summary-text"></span>
+      <span style="font-size:18px;font-weight:800;color:var(--red)" id="summary-total"></span>
+    </div>
+  </div>
+
+  <!-- ========== 添加桌台弹窗 ========== -->
+  <div class="modal-overlay" id="table-modal" style="display:none" onclick="if(event.target===this)hideModal('table-modal')">
+    <div class="modal">
+      <h3>添加桌台</h3>
+      <input type="number" id="new-table-num" placeholder="输入桌号，如 1、2、3..." min="1" onkeydown="if(event.key==='Enter')addTable()">
+      <div class="modal-btns">
+        <button class="cancel" onclick="hideModal('table-modal')">取消</button>
+        <button class="confirm" onclick="addTable()">确认添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 添加菜品弹窗 ========== -->
+  <div class="modal-overlay" id="dish-modal" style="display:none" onclick="if(event.target===this)hideModal('dish-modal')">
+    <div class="modal">
+      <h3>添加菜品到菜品库</h3>
+      <div class="dish-photo-area" id="dish-photo-area" onclick="document.getElementById('dish-photo-input').click()">
+        <div class="placeholder" id="dish-photo-placeholder">
+          <span class="ph-icon">📸</span>
+          <span class="ph-text">点击拍摄菜品参考照</span>
+        </div>
+        <img id="dish-photo-preview" style="display:none" alt="">
+      </div>
+      <input type="file" id="dish-photo-input" accept="image/*" capture="environment" onchange="handleDishPhoto(event)" hidden>
+      <input type="text" id="new-dish-name" placeholder="输入菜品名称" onkeydown="if(event.key==='Enter')document.getElementById('new-dish-price').focus()">
+      <input type="number" id="new-dish-price" placeholder="单价（元）" step="0.1" min="0" onkeydown="if(event.key==='Enter')addDish()">
+      <div class="modal-btns">
+        <button class="cancel" onclick="hideModal('dish-modal')">取消</button>
+        <button class="confirm" onclick="addDish()">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-overlay" id="loading" style="display:none">
+    <div class="spinner"></div>
+    <p class="loading-text">AI 正在对照菜品库识别...</p>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" style="display:none"></div>
+
+</div>
+
+<script>
+// ==================== Storage ====================
+const LS_TABLES = 'bbq_tables_v2';
+const LS_LIBRARY = 'bbq_library';
+const LS_API_KEY = 'bbq_api_key';
+
+function loadTables() {
+  try { return JSON.parse(localStorage.getItem(LS_TABLES) || '{}'); } catch { return {}; }
+}
+function saveTables(t) { localStorage.setItem(LS_TABLES, JSON.stringify(t)); }
+
+function loadLibrary() {
+  try { return JSON.parse(localStorage.getItem(LS_LIBRARY) || '[]'); } catch { return []; }
+}
+function saveLibrary(l) { localStorage.setItem(LS_LIBRARY, JSON.stringify(l)); }
+
+function loadApiKey() { return localStorage.getItem(LS_API_KEY) || ''; }
+function saveApiKey(k) { localStorage.setItem(LS_API_KEY, k); }
+
+// ==================== State ====================
+let currentTable = null;
+let dishPhotoBase64 = null;
+
+// ==================== Toast ====================
+function showToast(msg, duration = 2000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', duration);
+}
+
+// ==================== Loading ====================
+function showLoading(msg) {
+  document.querySelector('.loading-text').textContent = msg || 'AI 正在对照菜品库识别...';
+  document.getElementById('loading').style.display = 'flex';
+}
+function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+
+// ==================== Tab Switching ====================
+function switchTab(tab) {
+  const views = {
+    tables: 'view-tables',
+    library: 'view-library',
+    settings: 'view-settings'
+  };
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(views[tab]).classList.add('active');
+
+  // Update tab bar active states
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  const tabs = document.querySelectorAll('.tab-item');
+  const idx = { tables: 0, library: 1, settings: 2 };
+  // Find all tab bars and update
+  document.querySelectorAll('.tab-bar').forEach(bar => {
+    bar.querySelectorAll('.tab-item').forEach((item, i) => {
+      item.classList.toggle('active', i === idx[tab]);
+    });
+  });
+
+  if (tab === 'tables') { currentTable = null; renderTables(); }
+  if (tab === 'library') renderLibrary();
+  if (tab === 'settings') {
+    document.getElementById('api-key-input').value = loadApiKey();
+    document.getElementById('settings-status').textContent = '';
+  }
+  updateHeaderBadge();
+}
+
+function updateHeaderBadge() {
+  const lib = loadLibrary();
+  document.getElementById('lib-count-header').textContent = lib.length ? '菜品库 ' + lib.length + ' 种' : '';
+  document.getElementById('lib-dish-count').textContent = lib.length ? '共 ' + lib.length + ' 种菜品' : '暂无菜品';
+}
+
+// ==================== Tables ====================
+function renderTables() {
+  const tables = loadTables();
+  const main = document.getElementById('tables-main');
+  const nums = Object.keys(tables).sort((a, b) => Number(a) - Number(b));
+
+  if (nums.length === 0) {
+    main.innerHTML = `<div class="empty-state"><span class="icon">🪑</span><p>还没有桌台，点击下方添加</p></div>`;
+    return;
+  }
+
+  main.innerHTML = `<div class="table-grid">${nums.map(n => {
+    const t = tables[n];
+    const count = (t.items || []).reduce((s, i) => s + i.quantity, 0);
+    const totalPrice = (t.items || []).reduce((s, i) => {
+      const p = i.price || getDishPrice(i.name);
+      return s + p * i.quantity;
+    }, 0);
+    return `<div class="table-card" onclick="openTable('${n}')">
+      <button class="table-delete" onclick="event.stopPropagation();deleteTable('${n}')">×</button>
+      <div class="table-num">${n}</div>
+      <div class="table-label">号桌</div>
+      <div class="table-count">${count > 0 ? count + ' 道菜 · ¥' + totalPrice.toFixed(1) : '暂无菜品'}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function showAddTableModal() {
+  document.getElementById('table-modal').style.display = 'flex';
+  document.getElementById('new-table-num').value = '';
+  setTimeout(() => document.getElementById('new-table-num').focus(), 100);
+}
+
+function addTable() {
+  const input = document.getElementById('new-table-num');
+  const num = input.value.trim();
+  if (!num) { showToast('请输入桌号'); return; }
+  const tables = loadTables();
+  if (tables[num]) { showToast('该桌台已存在'); return; }
+  tables[num] = { number: num, items: [], createdAt: new Date().toISOString() };
+  saveTables(tables);
+  hideModal('table-modal');
+  renderTables();
+  showToast(num + ' 号桌已添加');
+}
+
+function deleteTable(num) {
+  if (!confirm('确定删除 ' + num + ' 号桌？所有点菜数据将丢失。')) return;
+  const tables = loadTables();
+  delete tables[num];
+  saveTables(tables);
+  renderTables();
+  showToast(num + ' 号桌已删除');
+}
+
+// ==================== Dish Library ====================
+function renderLibrary() {
+  const lib = loadLibrary();
+  const main = document.getElementById('library-main');
+
+  if (lib.length === 0) {
+    main.innerHTML = `<div class="empty-state"><span class="icon">📚</span><p>菜品库为空<br>先给每道菜拍一张参考照</p></div>`;
+    return;
+  }
+
+  main.innerHTML = `<div class="dish-grid">${lib.map((d, idx) => `
+    <div class="dish-card">
+      <button class="dish-delete" onclick="event.stopPropagation();deleteDish(${idx})">×</button>
+      ${d.photo ? `<img class="dish-img" src="${d.photo}" alt="${escHtml(d.name)}">`
+        : `<div class="dish-img-placeholder">🍖</div>`}
+      <div class="dish-info"><div class="dish-name">${escHtml(d.name)}</div>
+      <div class="dish-price">¥${(d.price || 0).toFixed(1)}</div></div>
+    </div>
+  `).join('')}</div>`;
+
+  updateHeaderBadge();
+}
+
+function showAddDishModal() {
+  document.getElementById('dish-modal').style.display = 'flex';
+  document.getElementById('new-dish-name').value = '';
+  document.getElementById('new-dish-price').value = '';
+  document.getElementById('dish-photo-preview').style.display = 'none';
+  document.getElementById('dish-photo-placeholder').style.display = 'block';
+  dishPhotoBase64 = null;
+  document.getElementById('dish-photo-input').value = '';
+  setTimeout(() => document.getElementById('new-dish-name').focus(), 100);
+}
+
+function handleDishPhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    dishPhotoBase64 = e.target.result;
+    const preview = document.getElementById('dish-photo-preview');
+    preview.src = dishPhotoBase64;
+    preview.style.display = 'block';
+    document.getElementById('dish-photo-placeholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function addDish() {
+  const name = document.getElementById('new-dish-name').value.trim();
+  const price = parseFloat(document.getElementById('new-dish-price').value) || 0;
+  if (!name) { showToast('请输入菜品名称'); return; }
+  if (price <= 0) { showToast('请输入有效价格'); return; }
+  const lib = loadLibrary();
+  if (lib.some(d => d.name === name)) { showToast('该菜品已存在'); return; }
+  lib.push({ id: Date.now().toString(), name, price, photo: dishPhotoBase64 || '' });
+  saveLibrary(lib);
+  hideModal('dish-modal');
+  renderLibrary();
+  updateHeaderBadge();
+  showToast('「' + name + '」已加入菜品库 ¥' + price.toFixed(1));
+}
+
+function deleteDish(idx) {
+  const lib = loadLibrary();
+  const name = lib[idx].name;
+  if (!confirm('确定从菜品库删除「' + name + '」？')) return;
+  lib.splice(idx, 1);
+  saveLibrary(lib);
+  renderLibrary();
+  updateHeaderBadge();
+  showToast('已删除「' + name + '」');
+}
+
+// ==================== Table Detail ====================
+function openTable(num) {
+  const lib = loadLibrary();
+  if (lib.length === 0) {
+    showToast('请先在菜品库中添加菜品');
+    switchTab('library');
+    return;
+  }
+  currentTable = num;
+  document.getElementById('detail-table-num').textContent = num + ' 号桌';
+  document.getElementById('manual-add').style.display = 'none';
+  switchView('view-detail');
+  renderDetail();
+  document.getElementById('camera-input').value = '';
+  document.getElementById('gallery-input').value = '';
+}
+
+function switchView(viewId) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(viewId).classList.add('active');
+}
+
+function goBackToTables() {
+  currentTable = null;
+  document.getElementById('manual-add').style.display = 'none';
+  switchTab('tables');
+}
+
+function getDishPrice(name) {
+  const lib = loadLibrary();
+  const dish = lib.find(d => d.name === name);
+  return dish ? (dish.price || 0) : 0;
+}
+
+function renderDetail() {
+  if (!currentTable) return;
+  const tables = loadTables();
+  const t = tables[currentTable];
+  if (!t) { goBackToTables(); return; }
+  const items = t.items || [];
+  const main = document.getElementById('detail-main');
+
+  if (items.length === 0) {
+    main.innerHTML = `<div class="empty-state"><span class="icon">📋</span><p>暂无菜品，拍照后 AI 会对照菜品库识别</p></div>`;
+    document.getElementById('summary-bar').style.display = 'none';
+    return;
+  }
+
+  main.innerHTML = `<ul class="item-list">${items.map((item, idx) => {
+    const price = item.price || getDishPrice(item.name);
+    const subtotal = price * item.quantity;
+    return `
+    <li class="item">
+      <div class="item-info">
+        <span class="item-name">${escHtml(item.name)}</span>
+        <span class="item-price">¥${price.toFixed(1)}/份</span>
+      </div>
+      <div class="item-qty">
+        <button onclick="changeQty(${idx}, -1)">−</button>
+        <span>${item.quantity}</span>
+        <button onclick="changeQty(${idx}, 1)">+</button>
+      </div>
+      <span class="item-subtotal">¥${subtotal.toFixed(1)}</span>
+      <button class="item-del" onclick="removeItem(${idx})">×</button>
+    </li>`;
+  }).join('')}</ul>`;
+
+  const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  const totalPrice = items.reduce((s, i) => {
+    const p = i.price || getDishPrice(i.name);
+    return s + p * i.quantity;
+  }, 0);
+  document.getElementById('summary-bar').style.display = 'flex';
+  document.getElementById('summary-text').innerHTML = `共 <strong>${items.length}</strong> 种 <strong>${totalQty}</strong> 份`;
+  document.getElementById('summary-total').textContent = '¥' + totalPrice.toFixed(1);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toggleManualAdd() {
+  const el = document.getElementById('manual-add');
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+  if (el.style.display === 'flex') document.getElementById('manual-dish-name').focus();
+}
+
+function autoFillPrice() {
+  const name = document.getElementById('manual-dish-name').value.trim();
+  const price = getDishPrice(name);
+  if (price > 0) {
+    document.getElementById('manual-dish-price').value = price;
+  }
+}
+
+function addManualDish() {
+  const nameEl = document.getElementById('manual-dish-name');
+  const qtyEl = document.getElementById('manual-dish-qty');
+  const priceEl = document.getElementById('manual-dish-price');
+  const name = nameEl.value.trim();
+  const qty = parseInt(qtyEl.value) || 1;
+  const price = parseFloat(priceEl.value) || getDishPrice(name) || 0;
+  if (!name) { showToast('请输入菜名'); return; }
+  const tables = loadTables();
+  if (!tables[currentTable]) return;
+  const items = tables[currentTable].items || [];
+  const existing = items.find(i => i.name === name);
+  if (existing) { existing.quantity += qty; }
+  else { items.push({ id: Date.now().toString(), name, quantity: qty, price }); }
+  tables[currentTable].items = items;
+  saveTables(tables);
+  renderDetail();
+  nameEl.value = ''; qtyEl.value = '1'; priceEl.value = '';
+}
+
+function changeQty(idx, delta) {
+  const tables = loadTables();
+  if (!tables[currentTable]) return;
+  const items = tables[currentTable].items;
+  if (!items[idx]) return;
+  items[idx].quantity += delta;
+  if (items[idx].quantity <= 0) items.splice(idx, 1);
+  saveTables(tables);
+  renderDetail();
+}
+
+function removeItem(idx) {
+  const tables = loadTables();
+  if (!tables[currentTable]) return;
+  tables[currentTable].items.splice(idx, 1);
+  saveTables(tables);
+  renderDetail();
+}
+
+function clearCurrentTable() {
+  if (!confirm('确定清空 ' + currentTable + ' 号桌的所有菜品？')) return;
+  const tables = loadTables();
+  if (!tables[currentTable]) return;
+  tables[currentTable].items = [];
+  saveTables(tables);
+  renderDetail();
+  showToast('已清空');
+}
+
+function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+
+// ==================== Scan & Recognition ====================
+function handleScanImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const apiKey = loadApiKey();
+  if (!apiKey) { showToast('请先在设置中填写 API Key'); switchTab('settings'); return; }
+  if (!currentTable) { showToast('请先选择桌台'); goBackToTables(); return; }
+
+  showLoading();
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    recognizeDishes(e.target.result, apiKey);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function recognizeDishes(scanBase64, apiKey) {
+  const lib = loadLibrary();
+  // Only send dish names as text (not photos) to minimize token cost
+  const nameList = lib.map(d => d.name).join('、');
+
+  try {
+    const systemPrompt = `你是烧烤店菜品识别助手。本店菜单包含以下菜品：
+
+${nameList}
+
+观察客人桌上的实拍照片，从中识别出菜单中存在的菜品及其数量。
+
+返回严格JSON：
+{
+  "dishes": [
+    {"name": "菜品名称", "quantity": 数量}
+  ]
+}
+
+规则：
+1. name 必须与上面列出的菜名完全一致，不要修改、缩写或扩展
+2. quantity 是整数，表示份数/串数/盘数
+3. 同种菜多份请合并 quantity
+4. 只输出照片中确实看到的菜，没看到的不输出
+5. 照片中的菜如果不在上述菜单列表中，忽略它
+6. 不要编造菜品`;
+
+    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: 'qwen-vl-plus',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: scanBase64 } },
+              { type: 'text', text: '识别照片中的菜品和数量' }
+            ]
+          }
+        ],
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      hideLoading();
+      console.error('API Error:', resp.status, err);
+      if (resp.status === 401 || resp.status === 403) {
+        showToast('API Key 无效，请检查设置');
+      } else if (resp.status === 429) {
+        showToast('请求太频繁，请稍后再试');
+      } else {
+        showToast('识别失败: ' + resp.status);
+      }
+      return;
+    }
+
+    const data = await resp.json();
+    hideLoading();
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) { showToast('AI 未返回有效结果，请重试'); return; }
+
+    let result;
+    try {
+      const cleaned = content.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
+      result = JSON.parse(cleaned);
+    } catch {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) {
+        try { result = JSON.parse(match[0]); } catch { /* fall through */ }
+      }
+      if (!result) { console.error('Parse error:', content); showToast('AI 返回格式异常，请重试'); return; }
+    }
+
+    const dishes = result.dishes || [];
+    if (dishes.length === 0) { showToast('未识别到菜品，请换张清晰的照片重试'); return; }
+
+    // Merge into current table
+    const tables = loadTables();
+    if (!tables[currentTable]) return;
+    let items = tables[currentTable].items || [];
+
+    let mergedCount = 0, newCount = 0;
+    for (const d of dishes) {
+      if (!d.name || !d.quantity) continue;
+      const existing = items.find(i => i.name === d.name);
+      if (existing) { existing.quantity += d.quantity; mergedCount++; }
+      else {
+        const price = getDishPrice(d.name);
+        items.push({ id: Date.now().toString() + Math.random(), name: d.name, quantity: d.quantity, price });
+        newCount++;
+      }
+    }
+
+    tables[currentTable].items = items;
+    saveTables(tables);
+    renderDetail();
+
+    let msg = `识别到 ${dishes.length} 种菜品`;
+    if (newCount > 0) msg += `，新增 ${newCount} 种`;
+    if (mergedCount > 0) msg += `，合并 ${mergedCount} 种`;
+    showToast(msg, 2500);
+  } catch (e) {
+    hideLoading();
+    console.error('Fetch error:', e);
+    showToast('网络错误，请检查网络后重试');
+  }
+}
+
+// ==================== Settings ====================
+function saveSettings() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { showToast('请输入 API Key'); return; }
+  saveApiKey(key);
+  document.getElementById('settings-status').textContent = '已保存 ✓';
+  setTimeout(() => switchTab('tables'), 800);
+}
+
+async function downloadApp() {
+  try {
+    // Fetch the original source file from server for a clean copy
+    const resp = await fetch(window.location.href);
+    const html = await resp.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      const win = window.open(url, '_blank');
+      if (win) {
+        showToast('点底部「分享」→「存储到文件」', 4000);
+      } else {
+        window.location.href = url;
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      return;
+    }
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bbq-scanner.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('已保存到下载目录', 3000);
+  } catch (e) {
+    showToast('保存失败，请截图此页面备用', 3000);
+  }
+}
+
+// ==================== Init ====================
+document.getElementById('api-key-input').value = loadApiKey();
+renderTables();
+updateHeaderBadge();
+</script>
+
+</body>
+</html>
