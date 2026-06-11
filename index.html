@@ -384,10 +384,10 @@ body {
     </div>
     <div class="main">
       <div class="settings-section">
-        <h3>通义千问 API</h3>
+        <h3>七牛云 AI API</h3>
         <label>API Key</label>
         <input type="password" id="api-key-input" placeholder="sk-xxxxxxxx">
-        <p class="hint">在 <a href="https://bailian.console.aliyun.com" target="_blank">阿里云百炼平台</a> 申请，新用户有免费额度。识别一次约花费几分钱。</p>
+        <p class="hint">当前模型：doubao-1.5-vision-pro。在 <a href="https://portal.qiniu.com/ai-inference/api-key" target="_blank">七牛云 AI 推理</a> 申请，新用户送 1000 万 Token。</p>
       </div>
       <button class="fab" onclick="saveSettings()" style="position:static;margin-top:8px">保存设置</button>
       <button class="fab fab-outline" onclick="downloadApp()" style="position:static;margin-top:12px">💾 保存到手机</button>
@@ -882,11 +882,11 @@ async function recognizeDishes(scanBase64, apiKey) {
     userContent.push({ type: 'image_url', image_url: { url: scanBase64 } });
     userContent.push({ type: 'text', text: '对照参考图，识别照片中的菜品和数量，输出JSON' });
 
-    const resp = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+    const resp = await fetch('https://api.qnaigc.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
-        model: 'qwen-vl-max',
+        model: 'doubao-1.5-vision-pro',
         messages: [
           {
             role: 'system',
