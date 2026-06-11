@@ -493,7 +493,10 @@ function saveTables(t) { localStorage.setItem(LS_TABLES, JSON.stringify(t)); }
 function loadLibrary() {
   try { return JSON.parse(localStorage.getItem(LS_LIBRARY) || '[]'); } catch { return []; }
 }
-function saveLibrary(l) { localStorage.setItem(LS_LIBRARY, JSON.stringify(l)); }
+function saveLibrary(l) {
+  try { localStorage.setItem(LS_LIBRARY, JSON.stringify(l)); }
+  catch (e) { showToast('存储空间不足，请删除一些菜品图片后重试', 3000); throw e; }
+}
 
 function loadApiKey() { return localStorage.getItem(LS_API_KEY) || ''; }
 function saveApiKey(k) { localStorage.setItem(LS_API_KEY, k); }
@@ -641,18 +644,36 @@ function showAddDishModal() {
   setTimeout(() => document.getElementById('new-dish-name').focus(), 100);
 }
 
+function compressImage(file, maxW, quality, callback) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = h * maxW / w; w = maxW; }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function handleDishPhoto(event) {
   const file = event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    dishPhotoBase64 = e.target.result;
+  showLoading('压缩图片中...');
+  compressImage(file, 400, 0.6, function(compressed) {
+    dishPhotoBase64 = compressed;
     const preview = document.getElementById('dish-photo-preview');
     preview.src = dishPhotoBase64;
     preview.style.display = 'block';
     document.getElementById('dish-photo-placeholder').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+    hideLoading();
+  });
 }
 
 function addDish() {
@@ -837,13 +858,11 @@ function handleScanImage(event) {
   if (!apiKey) { showToast('请先在设置中填写 API Key'); switchTab('settings'); return; }
   if (!currentTable) { showToast('请先选择桌台'); goBackToTables(); return; }
 
-  showLoading();
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    recognizeDishes(e.target.result, apiKey);
-  };
-  reader.readAsDataURL(file);
+  showLoading('压缩图片中...');
+  compressImage(file, 800, 0.7, function(compressed) {
+    showLoading('AI 正在识别...');
+    recognizeDishes(compressed, apiKey);
+  });
 }
 
 async function recognizeDishes(scanBase64, apiKey) {
