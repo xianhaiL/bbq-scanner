@@ -1078,28 +1078,52 @@ function startVoice() {
   recognition.start();
 }
 
+function chineseNumToDigit(str) {
+  const map = { '零':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10 };
+  // Handle "十二" (12), "二十" (20), "二十三" (23), "三十五" (35)
+  return str.replace(/[零一二两三四五六七八九十]+/g, (match) => {
+    if (match === '十') return '10';
+    if (match.length === 1) return String(map[match] ?? match);
+    // "十二" → 12, "二十" → 20, "二十三" → 23, "三十五" → 35
+    let result = 0;
+    if (match.startsWith('十')) result = 10 + (map[match[1]] || 0);  // 十二→12
+    else if (match.endsWith('十')) result = (map[match[0]] || 0) * 10;  // 二十→20
+    else if (match.includes('十')) {
+      const parts = match.split('十');
+      result = (map[parts[0]] || 0) * 10 + (map[parts[1]] || 0);  // 二十三→23
+    }
+    return String(result || match);
+  });
+}
+
 function parseVoiceText(text) {
   const lib = loadLibrary();
   if (lib.length === 0) { showToast('请先添加菜品到菜品库'); return; }
 
+  // Display raw text for debugging
+  console.log('Voice raw:', text);
+
+  // Convert Chinese numerals to digits: "羊肉三串" → "羊肉3串"
+  const normalized = chineseNumToDigit(text);
+  console.log('Voice normalized:', normalized);
+
+  // Insert separator at quantity boundaries: "羊肉3串牛肉2串" → "羊肉3串,牛肉2串"
+  const withSep = normalized.replace(/(\d+\s*[个串份盘只根]?)([^\d,，、\s。；;])/g, '$1,$2');
   // Split by common separators
-  const segments = text.split(/[,，、\s。]+/).filter(s => s.trim());
+  const segments = withSep.split(/[,，、\s。；;]+/).filter(s => s.trim());
   const found = [];
 
   for (const seg of segments) {
-    // Try to extract: dish name + quantity
-    // Pattern: name + number + unit, or number + unit + name
     let name = null, qty = 1;
 
-    // "羊肉串5个" "羊肉串5串" "羊肉串5份" "羊肉串5"
+    // "羊肉串5个" "羊肉串5串" "羊肉串5" "羊肉5"
     let m = seg.match(/^(.+?)(\d+)\s*(个|串|份|盘|只|根)?$/);
     if (m) { name = m[1]; qty = parseInt(m[2]); }
     else {
-      // "5个羊肉串" "5串羊肉串"
+      // "5个羊肉串" "5串羊肉"
       m = seg.match(/^(\d+)\s*(个|串|份|盘|只|根)?(.+)$/);
       if (m) { qty = parseInt(m[1]); name = m[3]; }
       else {
-        // Just dish name, no quantity
         name = seg;
         qty = 1;
       }
@@ -1107,18 +1131,17 @@ function parseVoiceText(text) {
 
     if (!name) continue;
     name = name.trim();
+    // Strip trailing units from name: "羊肉串" after "羊肉串5个" is fine, but "羊肉个" is not
+    name = name.replace(/[个串份盘只根]+$/, '');
 
     // Fuzzy match against library
     let bestMatch = null;
-    // Exact match first
     bestMatch = lib.find(d => d.name === name);
-    // Contains match
     if (!bestMatch) bestMatch = lib.find(d => d.name.includes(name) || name.includes(d.name));
-    // Partial match (at least 2 chars in common)
     if (!bestMatch && name.length >= 2) {
       bestMatch = lib.find(d => {
         const shorter = d.name.length < name.length ? d.name : name;
-        return shorter.length >= 2 && (d.name.includes(shorter) || name.includes(d.name));
+        return shorter.length >= 2 && (d.name.includes(shorter) || shorter.includes(d.name.substring(0,2)));
       });
     }
 
@@ -1130,7 +1153,7 @@ function parseVoiceText(text) {
   }
 
   if (found.length === 0) {
-    showToast('未匹配到菜品，请说清楚菜名。原文：' + text, 4000);
+    showToast('未匹配到菜品，请说清楚菜名。听到的是：' + text, 4000);
     return;
   }
 
