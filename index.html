@@ -1098,17 +1098,31 @@ function stopVoice() {
 
 async function processAudioBlob(blob, btn, hint) {
   try {
-    // Decode and resample to 16kHz mono WAV
     const arrayBuffer = await blob.arrayBuffer();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    let audioBuffer;
+    try {
+      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    } catch (e) {
+      audioCtx.close();
+      // decodeAudioData failed - try sending raw blob directly
+      console.warn('decodeAudioData failed, trying raw blob');
+      return await sendRawBlobToBaidu(blob, btn, hint);
+    }
     audioCtx.close();
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      throw new Error('Empty audio');
+    }
 
     // Resample to 16kHz mono
     const srcRate = audioBuffer.sampleRate;
     const srcData = audioBuffer.getChannelData(0);
     const ratio = srcRate / 16000;
     const newLen = Math.floor(srcData.length / ratio);
+    if (newLen < 800) { // Less than 0.05 seconds
+      throw new Error('Too short');
+    }
     const resampled = new Float32Array(newLen);
     for (let i = 0; i < newLen; i++) {
       resampled[i] = srcData[Math.floor(i * ratio)];
@@ -1132,38 +1146,53 @@ async function processAudioBlob(blob, btn, hint) {
       off += 2;
     }
 
-    // Chunked base64 to avoid stack overflow
     const bytes = new Uint8Array(wavBuffer);
     let base64 = '';
     for (let i = 0; i < bytes.length; i += 8192) {
       base64 += btoa(String.fromCharCode(...bytes.slice(i, i + 8192)));
     }
-    const token = await getBaiduToken();
-    const resp = await fetch('https://vop.baidu.com/server_api', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        format: 'wav', rate: 16000, channel: 1, cuid: 'bbq-app',
-        token: token, speech: base64, len: base64.length
-      })
-    });
-    const data = await resp.json();
-
-    btn.textContent = '🎤 语音录入';
-    hint.textContent = '说"菜品名+数量"，如"羊肉串5个、牛肉3串"';
-
-    if (data.err_no === 0 && data.result && data.result.length > 0) {
-      console.log('Baidu ASR:', data.result[0]);
-      parseVoiceText(data.result[0]);
-    } else {
-      console.error('Baidu error:', data);
-      showToast('未识别到语音，请靠近手机大声说清楚');
-    }
+    return await callBaiduASR(base64, btn, hint);
   } catch (e) {
-    console.error('ASR error:', e);
+    console.error('ASR error:', e.message || e);
     btn.textContent = '🎤 语音录入';
     hint.textContent = '说"菜品名+数量"，如"羊肉串5个、牛肉3串"';
-    showToast('识别失败，请检查网络后重试');
+    if (e.message === 'Too short') showToast('录音太短，请按住说完全部菜品');
+    else showToast('识别失败: ' + (e.message || '网络错误'));
+  }
+}
+
+async function sendRawBlobToBaidu(blob, btn, hint) {
+  // Convert blob to base64 directly and try pcm format
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let base64 = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    base64 += btoa(String.fromCharCode(...bytes.slice(i, i + 8192)));
+  }
+  return await callBaiduASR(base64, btn, hint);
+}
+
+async function callBaiduASR(base64, btn, hint) {
+  const token = await getBaiduToken();
+  const resp = await fetch('https://vop.baidu.com/server_api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      format: 'wav', rate: 16000, channel: 1, cuid: 'bbq-app',
+      token: token, speech: base64, len: base64.length
+    })
+  });
+  const data = await resp.json();
+
+  btn.textContent = '🎤 语音录入';
+  hint.textContent = '说"菜品名+数量"，如"羊肉串5个、牛肉3串"';
+
+  if (data.err_no === 0 && data.result && data.result.length > 0) {
+    console.log('Baidu ASR:', data.result[0]);
+    parseVoiceText(data.result[0]);
+  } else {
+    console.error('Baidu err:', data.err_no, data.err_msg);
+    showToast('未识别到语音，请大声说清楚后重试');
   }
 }
 
